@@ -1,0 +1,442 @@
+---
+title: "Google Job Category, Skills, and YouTube Videos"
+author: "Nitya"
+date: "2023-10-29"
+output: html_document
+---
+
+#**1. Clearning up the data to get a list of job skills for popular tech job categories in the tech industry**
+
+For this project the list the of popular tech job categories and the necessary skills required to master will be obtained from the following Kaggle Dataset on Google Job Skills: https://www.kaggle.com/datasets/niyamatalmass/google-job-skills
+
+To get started, the user needs to download this data as a csv file called *job_skills.csv* and save it to their desired working directory
+
+##**1.1 Download the necessary libraries and load the data**
+
+```{r}
+library(tidyr)
+library(stringr)
+library(dplyr)
+
+#Load data into R
+jobskills <- as.data.frame(read.csv("job_skills.csv", stringsAsFactors = FALSE))
+```
+
+##**1.2 Clean the data**
+
+##Step 1: Combine all minimum qualifications and preferred qualifications together by job category 
+
+```{r}
+jobskills_by_cat <- jobskills %>%
+  group_by(Category) %>%
+  summarize(
+    combined_min_qual = paste(Minimum.Qualifications, collapse = ","),
+    combined_pref_qual = paste(Preferred.Qualifications, collapse = ",")
+  )%>%
+  mutate(combined_qual = paste(combined_min_qual, combined_pref_qual, sep = ","))%>%
+  select(Category, combined_qual)
+```
+
+
+###Step 2: Exclude non-technical jobs that are not specific to tech industry
+
+```{r}
+jobskills_by_cat <- jobskills_by_cat%>%
+  filter(!Category %in% c("Administrative", "Business Strategy", "Finance", "Legal & Government Relations","Manufacturing & Supply Chain","Marketing & Communications","Partnerships","People Operations" , "Real Estate & Workplace Services","Sales & Account Management" , "Sales Operations"))
+```
+
+###Step 3: Manipulate data to get list of tools, skills, languages that can be learned
+
+```{r}
+#define keywords that indicate presence of languages, tools, and skills
+keywords <- c("languages such as", "tools", "skill", "languages:", "code")
+
+# Function to extract sentences containing keywords
+filter_sentences <- function(paragraph, keywords) {
+  sentences <- str_split(paragraph, "\\.\\s+")
+  if (length(sentences) > 0) {
+    sentences <- sentences[[1]]
+    selected_sentences <- sentences[str_detect(sentences, paste0(keywords, collapse = "|"))]
+    if (length(selected_sentences) > 0) {
+      return(paste(selected_sentences, collapse = ". "))
+    }
+  }
+  return("")
+}
+
+# Iterate over the rows and apply the function
+df_filtered <- jobskills_by_cat %>%
+  mutate(combined_qual1 = sapply(combined_qual, filter_sentences, keywords))
+View(df_filtered)
+```
+
+
+###Step 4: #From the cleaned up data, extract skills for each of the 12 job categories. Exclude all degree qualifications from extracted skills
+
+
+```{r}
+#Data Center and Network SKills
+# Define a vector of keywords representing skills (Updated to exclude unwanted terms)
+skills_keywords <- c("communication", "project management", "requirement gathering", "planning", "scheduling")
+
+# Initialize an empty vector to store the extracted skills
+extracted_skills <- character(0)
+
+# Iterate through the keywords and look for matches in the text
+for (keyword in skills_keywords) {
+  matches <- str_extract_all(df_filtered[[1,3]], keyword)
+  if (length(matches[[1]]) > 0) {
+    extracted_skills <- c(extracted_skills, keyword)
+  }
+}
+
+#replace value in df_filtered
+df_filtered$combined_qual1[1] <- list(extracted_skills)
+
+#Developer Relations Skills
+
+# Define a vector of programming languages
+languages <- c("Java", "JavaScript", "C#", "Objective-C", "Python", "Go", "Java", "PHP", "Ruby", "Node.js", "Go", ".NET", "JavaScript")
+
+# Initialize an empty vector to store the extracted skills
+extracted_skills_dr <- character(0)
+
+# Extract programming languages, excluding "C/C++"
+for (language in languages) {
+  if (str_detect(df_filtered[[2,3]], language) && language != "C/C++") {
+    extracted_skills_dr <- c(extracted_skills_dr, language)
+  }
+}
+
+# Define a regular expression pattern to match educational qualifications
+education_pattern <- "(BA/BS degree|BA degree|BS degree|BA|BS)\\s+in\\s+\\w+"
+
+# Extract educational qualifications
+education_matches <- str_extract_all(extracted_skills_dr, education_pattern)[[1]]
+
+# Filter out qualifications that contain "degree"
+filtered_education <- education_matches[!grepl("degree", education_matches, ignore.case = TRUE)]
+
+# Combine programming languages and filtered educational qualifications
+extracted_skills_dr <- c(extracted_skills_dr, filtered_education)
+
+# Remove duplicates
+extracted_skills_dr <- unique(extracted_skills_dr)
+
+#replace value in df_filtered
+df_filtered$combined_qual1[2] <- list(extracted_skills_dr)
+
+#Hardware Engineering
+# Define a regular expression pattern to match key skills
+pattern <- "\\b(?:SKILL|Bash|Pearl|TCL|Splunk|Tableau|ELK|Design Compiler|ICC/ICC2|Innovus/EDI|Primetime|Conformal|Spyglass|Power Artist|JasperGold|IEV|0-In Formal|Magellan|C/C\\+\\+|Python|Tcl|Perl|Xilinx Vivado|Incisive|VCS|Synplify|Verdi|SimVision|synthesis|place and route|STA|formal verification|CDC|power/EM/IR analysis|UPF/CPF|DFT|Calibre|DFT Compiler|Tessent|Encounter Test|Redhawk|Voltus|semiconductor device physics|transistor characteristics|Verilog|SystemVerilog|OLED|MicroLED|LTPS|display technologies|surface finishing|painting|plating|PVD|anodizing|polishing|lapping|sandblasting|simulation|lab correlation|PowerSI|PowerDC|OptimizePI|SIwave|HSPICE|JDM|ODM|Python|Labview|Industrial Design|Cost|Factory operations)\\b"
+
+# Use the regex pattern to extract key skills
+extracted_skills_he <- unlist(str_extract_all(df_filtered[[3,3]], pattern))
+
+# extract first five skills
+first_5_skills_he <- extracted_skills_he [1:5]
+
+#replace value in df_filtered
+df_filtered$combined_qual1[3] <- list(first_5_skills_he)
+
+#It & Data Management
+
+# Define a regular expression pattern to match skills
+pattern <- "\\b(?:Perl|Linux Shell|Python|Informatica|Oracle Data Integrator|ODI|Anaplan|SAP Planning and Analytics|Hyperion Essbase|TM1|Hyperion Financial Management|HFM|NLP research|communication skills|agile|waterfall)\\b"
+
+# Use the regex pattern to extract skills
+skills_itdm <- unique(str_extract_all(df_filtered[[4,3]], pattern)[[1]])
+
+#replace value in df_filtered
+df_filtered$combined_qual1[4] <- list(skills_itdm)
+
+#Network Engineering
+
+# Initialize an empty vector to store the extracted skills
+extracted_skills_ne <- character(0)
+
+# Define a regular expression pattern to match skills
+pattern_ne <- "\\b(?:Android|Linux-based platforms|network design|network security|LAN|WAN|wireless local area networks|Juniper|Cisco|project management|network platform providers)\\b"
+
+# Split the text into paragraphs
+paragraphs <- unlist(strsplit(as.character(df_filtered$combined_qual1[5]), "\n"))
+
+# Loop through each paragraph and extract skills
+for (paragraph in paragraphs) {
+  # Use the regex pattern to extract skills from the paragraph
+  skills_ne <- unique(str_extract_all(paragraph, pattern_ne)[[1]])
+  # Add the extracted skills to the list
+  extracted_skills_ne <- c(extracted_skills_ne, skills_ne)
+}
+
+#replace value in df_filtered
+df_filtered$combined_qual1[5] <- list(extracted_skills_ne)
+
+#Product & customer support
+
+# Define a regular expression pattern to match skills
+pattern_pcs <- "\\b(SQL|Tableau|Python|C\\+\\+|Java|business intelligence|project management)\\b"
+
+# Use the regex pattern to extract skills
+skills_pcs <- unlist(strsplit(unique(unlist(str_extract_all(df_filtered[[6,3]], pattern_pcs))), ", "))
+
+#replace value in df_filtered
+df_filtered$combined_qual1[6] <- list(skills_pcs)
+
+#Program Management
+# Define a regular expression pattern to match skills
+pattern_pm <- "\\b(?:SQL|Project Management Tools|communication|CTS Certification|Java|JavaScript|Python|product launches|cloud technologies|Salesforce administration|program management|JavaScript)\\b"
+
+# Use the regex pattern to extract skills
+skills_pm <- unique(str_extract_all(df_filtered$combined_qual1[7], pattern_pm)[[1]])
+
+#replace value in df_filtered
+df_filtered$combined_qual1[7] <- list(skills_pm)
+
+#Software Engineering
+
+# Define a regular expression pattern to match skills
+pattern_se <- "\\b(?:Java|C\\+\\+|Python|C\\#|JavaScript|Go|C|HTML5|CSS|AngularJS|HEVC|VP9|AV1|test automation|computer architecture|ARM SoC|AMBA protocols|SystemC|RTL|IP modeling|shell programming|modern video codec|AJAX|HTML|consumer cameras|unit testing|stress testing|Perl|agile project development|HEVC|VP9|AV1)\\b"
+
+# Use the regex pattern to extract skills
+skills_se <- unique(str_extract_all(df_filtered$combined_qual1[8], pattern_se)[[1]])
+
+#replace value in df_filtered
+df_filtered$combined_qual1[8] <- list(skills_se)
+
+#Technical Infrastructure
+# Define the words to exclude
+exclude_words_ti <- c(
+  "Excellent", "BA", "BS", "Familiarity", "Windows", "Systematic", 
+  "Ability", "One", "Basic", "Responsible", "Effective", "Master",
+  "PhD", "Computer Science", "Experience", "Extensive", "Professional Engineering",
+  "Fluency", "Intermediate", "MS","consumer cameras"
+)
+
+# Define a regular expression pattern to match skills
+pattern_ti <- "\\b([A-Z][A-Za-z]+(\\s[A-Z][A-Za-z]+)*)\\b"
+
+# Use the regex pattern to extract skills
+skills_ti <- unique(str_extract_all(df_filtered$combined_qual1[9], pattern_ti)[[1]])
+
+# Exclude the specified words from the skills
+skills_ti <- setdiff(skills_ti, exclude_words_ti)
+
+#replace value in df_filtered
+df_filtered$combined_qual1[9] <- list(skills_se)
+
+#Technical Solutions
+
+# Define a vector of programming languages
+skills_ts <- c("Java", "Python", "Go", "JavaScript", "C++","PHP","advertising tags","project management", "cloud design considerations","Machine learning","Teamcenter", "CREO", "Solidworks", "Concept HDL", "Allegro")
+
+#replace value in df_filtered
+df_filtered$combined_qual1[10] <- list(skills_ts)
+
+#Technical Writing
+
+# Define a vector of programming languages
+skills_tw <- c("Java", "Python", "JavaScript", "C++","source code management")
+
+#replace value in df_filtered
+df_filtered$combined_qual1[11] <- list(skills_tw)
+
+
+#UserExperience and Design
+# Define a vector of UX Skills
+skills_ux <- c("Java/Android SDK", "Objective C/Swift/Xcode", "Alias", "SolidWorks", "Rhino", "ProE", "Alias", "SolidWorks", "Rhino", "ProE", "sketching", "Illustrator", "Photoshop", "Backbone", "Angular", "Ember", "HTML", "CSS", "UX Research")
+
+#replace value in df_filtered
+df_filtered$combined_qual1[12] <- list(skills_ux)
+```
+
+##*1.3 Create a table with all the job categories and skills and download as a csv file*
+
+The output from this section will be as follows google_job_cat_skills_final.csv: https://drive.google.com/file/d/15j3U2KUT9l6mBU1hhuZGK26jz1JnS_Nh/view?usp=sharing
+
+```{r}
+#Define overall job category and skill table
+job_catgeory_skills_tech <- df_filtered %>%
+  select(Category, combined_qual1)
+
+View(job_catgeory_skills_tech)
+
+library(tidyr)
+#unnest skills column
+job_catgeory_skills_tech1 <- job_catgeory_skills_tech %>% unnest(combined_qual1)
+
+##specify file path and download csv as google_job_cat_skills_final
+file_path_cat_skills <- "google_job_cat_skills_final.csv" #replace file path as needed
+write.csv(job_catgeory_skills_tech1, file = file_path_cat_skills)
+
+```
+
+##**1.4 Create a table with all the list of unique skills and download as a csv file**
+
+The output from this section will be as follows google_job_skills_final.csv: https://drive.google.com/file/d/1epVVXPjArKvfMQLniQYyF-xpjO0NWud9/view?usp=sharing
+
+```{r}
+#get a list of unique skills to use to search for videos
+skills_list <- unique(unlist(job_catgeory_skills_tech$combined_qual1))
+print(skills_list)
+
+#specify file path and download csv as google_job_skills_final
+file_path_skills <- "google_job_skills_final.csv"#replace file path as needed
+write.csv(skills_list, file = file_path_skills)
+
+```
+
+
+#**2. Creating list of YouTube videos that will allows the user to master the necessary skills to get their dream tech job**
+
+
+##*2.1 Download the necessary libraries and load the data*
+This section will require the user to have their own Google API Key by adding YouTube Data API V3 to a project on their Google Developer Console. The steps in the following tutorial can be followed to set this up: https://blog.hubspot.com/website/how-to-get-youtube-api-key
+
+```{r}
+# Load required libraries for HTTP requests and JSON parsing
+library(httr)
+library(jsonlite)
+
+# Define the base URL and API key
+base_url <- "https://www.googleapis.com/youtube/v3/search"
+api_key <- "AIzaSyBsXGYHFbyjmkqZA_h1-zrfeqqm_EFCFEs"  # Replace with your actual API key
+
+```
+
+##*2.2 Load the list of skills from the csv file downloaded in section 1.4*
+
+```{r}
+#Load the data and combine all the skills from the second column into one vector
+data <- read.csv("google_job_skills_final.csv")
+categories <- c(data[, 2:ncol(data)])
+
+#The output should be
+categories <- c("communication", "project management", "requirement gathering", "planning", "scheduling", "Java", "JavaScript", "C#", "Objective-C", "Python", 
+                "Go", "PHP", "Ruby", "Node.js", ".NET", 
+                "SKILL", "Bash", "Pearl", "TCL", "Splunk", 
+                "Perl", "Linux Shell", "Informatica", "Oracle Data Integrator", "ODI", 
+                "Anaplan", "SAP Planning and Analytics", "Hyperion Essbase", "TM1", "Hyperion Financial Management", 
+                "HFM", "communication skills", "waterfall", "agile", "NLP research", 
+                "Android", "Linux-based platforms", "Juniper", "Cisco", "wireless local area networks", 
+                "network design", "LAN", "WAN", "network security", "network platform providers", 
+                "SQL", "Tableau", "business intelligence", "CTS Certification", "product launches", 
+                "program management", "cloud technologies", "Salesforce administration", "C", "HTML5", 
+                "CSS", "AngularJS", "modern video codec", "HEVC", "VP9", 
+                "AV1", "test automation", "computer architecture", "ARM SoC", "AMBA protocols", 
+                "SystemC", "RTL", "IP modeling", "AJAX", "HTML", 
+                "consumer cameras", "stress testing", "unit testing", "agile project development", "shell programming", 
+                "C++", "advertising tags", "cloud design considerations", "Machine learning", "Teamcenter", 
+                "CREO", "Solidworks", "Concept HDL", "Allegro", "source code management", 
+                "Java/Android SDK", "Objective C/Swift/Xcode", "Alias", "SolidWorks", "Rhino", 
+                "ProE", "sketching", "Illustrator", "Photoshop", "Backbone", 
+                "Angular", "Ember", "UX Research"
+)
+
+```
+
+##*2.3 Use each element of the categories vector to retireve the top 10 YouTube Search results*
+
+The aim is to retrieve the top 10 YT Search results' details: video name, ID, and duration
+
+```{r}
+# Iterate through the categories vector and search for videos for each category
+for (category in categories) {
+  # Make a request to YouTube API to search for videos related to the current category
+  response <- GET(
+    base_url,
+    query = list(
+      q = category,
+      part = "snippet",
+      maxResults = 10,
+      type = "video",
+      key = api_key
+    )
+  )
+  
+  # Check if the response was successful
+  if (response$status_code == 200) {
+    print(paste("Successfully fetched data from YouTube API for category:", category))
+    
+    # Parse the JSON response to get the video titles and video IDs
+    data <- fromJSON(content(response, "text", encoding = "UTF-8"))
+    titles <- data$items$snippet$title
+    videoIds <- data$items$id$videoId
+    
+    # Use the video IDs to fetch details about the videos, specifically their durations
+    video_id_string <- paste(videoIds, collapse = ",")
+    video_details_response <- GET(
+      "https://www.googleapis.com/youtube/v3/videos",
+      query = list(
+        id = video_id_string,
+        part = "contentDetails",
+        key = api_key
+      )
+    )
+    
+    # Check if the video details response was successful
+    if (video_details_response$status_code == 200) {
+      video_data <- fromJSON(content(video_details_response, "text", encoding = "UTF-8"))
+      
+      # Extract video durations from the response
+      durations <- video_data$items$contentDetails$duration
+      
+      # Convert ISO 8601 duration format to a more readable format
+      convert_duration <- function(iso_duration) {
+        hours <- ifelse(grepl("H", iso_duration), as.integer(gsub(".*T(\\d+)H.*", "\\1", iso_duration)), 0)
+        minutes <- ifelse(grepl("M", iso_duration), as.integer(gsub(".*?(\\d+)M.*", "\\1", iso_duration)), 0)
+        seconds <- ifelse(grepl("S", iso_duration), as.integer(gsub(".*?(\\d+)S.*", "\\1", iso_duration)), 0)
+        
+        if (hours > 0) {
+          return(sprintf("%02d:%02d:%02d", hours, minutes, seconds))
+        } else {
+          return(sprintf("%02d:%02d", minutes, seconds))
+        }
+      }
+      readable_durations <- sapply(durations, convert_duration)
+
+```
+
+##*2.4 Combine all the results into a dataframe*
+
+
+```{r}
+ # Create a dataframe for the current category and add it to the result dataframe
+      category_df <- data.frame(Category = category, Title = titles, VideoID = videoIds, Readable_Duration = readable_durations, stringsAsFactors = FALSE)
+      video_details_df <- rbind(video_details_df, category_df)
+    } else {
+      print(paste("Error:", video_details_response$status_code))
+    }
+  } else {
+    print(paste("Error:", response$status_code))
+  }
+}
+
+#Remove rows with NAs
+video_details_df <- na.omit(video_details_df)
+
+# Remove the initial row of NAs
+video_details_df <- video_details_df[-1,]
+
+ # Add the video URL column
+video_details_df$Video_URL <- paste0("https://www.youtube.com/watch?v=", video_details_df$VideoID)
+
+
+# Print the final dataframe
+print(video_details_df)
+View(video_details_df)
+
+```
+
+##*2.5 Download the dataframe as a csv file*
+
+The output from this section will be as follows courses_data.csv: https://drive.google.com/file/d/118MxSHr1NxWeTZHZ9D-FuM-eV7wnsgVH/view?usp=sharing
+
+
+```{r}
+#specify file path and download csv as courses_data
+file_path <- "courses_data.csv" #specify path as needed
+write.csv(video_details_df, file = file_path)
+
+```
+
